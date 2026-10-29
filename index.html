@@ -12,7 +12,7 @@
 <body>
 <header>
   <div><h1>📬 PostRoute</h1><p>Deine persönliche Zustellroute</p></div>
-  <button id="locateBtn" class="secondary">📍 Mein Standort</button>
+  <div class="header-actions"><span id="connectionStatus" class="connection-status" role="status">Verbindung wird geprüft …</span><button id="locateBtn" class="secondary">📍 Mein Standort</button></div>
 </header>
 <main>
   <section class="search-panel card">
@@ -43,7 +43,7 @@
         <button id="organicMapsBtn">🧭 In Organic Maps navigieren</button>
       </div>
     </div>
-    <p class="hint">Die Karte und Adresssuche benötigen Internet. Die ausgewählten Ziele bleiben auf diesem Gerät gespeichert.</p>
+    <p class="hint" id="offlineHelp">Die Zustellliste und dein Fortschritt werden auf diesem Gerät gespeichert. Kartenkacheln, Adresssuche und Straßenrouten in PostRoute benötigen derzeit Internet. Für Offline-Karte und Navigation kannst du Organic Maps mit heruntergeladenen Österreich-Karten verwenden.</p>
   </section>
 
   <section class="card">

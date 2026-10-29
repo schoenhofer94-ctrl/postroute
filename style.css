@@ -6,3 +6,9 @@
 .nav-buttons{display:flex;flex-wrap:wrap;gap:8px}
 .nav-buttons button{flex:1}
 button:disabled{opacity:.5;cursor:not-allowed}
+
+
+.header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.connection-status { display: inline-block; font-size: .85rem; font-weight: 700; color: #176b52; white-space: nowrap; }
+.connection-status.is-offline { color: #a65a00; }
+@media (max-width: 560px) { .header-actions { width: 100%; justify-content: space-between; } }

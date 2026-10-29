@@ -14,6 +14,18 @@ let activeTargetId = null;
 
 const $ = id => document.getElementById(id);
 const map = L.map("map").setView(defaultCenter, 15);
+function updateConnectionStatus() {
+  const el = document.getElementById("connectionStatus");
+  if (!el) return;
+  const online = navigator.onLine;
+  el.textContent = online ? "● Online" : "● Offline-Modus";
+  el.classList.toggle("is-offline", !online);
+  const help = document.getElementById("offlineHelp");
+  if (help && !online) help.textContent = "Du bist offline: gespeicherte Zustellziele und Status bleiben verfügbar. Die Hintergrundkarte, Adresssuche und Straßenrouten in PostRoute sind nicht offline verfügbar. Für die Offline-Navigation öffne ein Ziel in Organic Maps.";
+}
+window.addEventListener("online", updateConnectionStatus);
+window.addEventListener("offline", updateConnectionStatus);
+
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -295,4 +307,5 @@ $("stopFollowBtn").addEventListener("click", () => {
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js").catch(()=>{}));
 }
+updateConnectionStatus();
 load();

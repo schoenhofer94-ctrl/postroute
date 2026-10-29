@@ -73,3 +73,11 @@ VERSION 9 – GPS-ÜBERGABE KORRIGIERT
 - Korrigiert den Zugriff auf den aktuellen Standort: PostRoute speichert GPS-Koordinaten als Array [Breitengrad, Längengrad].
 - Der Organic-Maps-Link verwendet das getestete Format /route?sll=...&dll=...&type=vehicle.
 - Service-Worker-Cache wurde auf v9 angehoben, damit die aktualisierte app.js geladen wird.
+
+
+VERSION 10 – ERSTER OFFLINE-SCHRITT
+- Die App-Hülle und die Leaflet-Bibliothek werden nach Möglichkeit zwischengespeichert, damit PostRoute nach einem erfolgreichen Online-Aufruf auch ohne Internet starten kann.
+- Zustellliste, Reihenfolge und Erledigt-/Übersprungen-Status bleiben lokal auf dem iPhone gespeichert.
+- Eine Statusanzeige zeigt Online/Offline an.
+- WICHTIG: Die Hintergrundkarten-Kacheln, Adresssuche und OSRM-Straßenrouten in PostRoute sind noch nicht offline verfügbar. Die öffentlichen OpenStreetMap-Kachelserver dürfen nicht für massenhaftes Vorladen ganzer Regionen verwendet werden. Für Offline-Karten und Navigation vorerst Organic Maps mit heruntergeladenen Österreich-Karten nutzen.
+- Nach dem Hochladen einmal online öffnen und laden lassen, damit Service Worker und Leaflet möglichst vollständig gespeichert werden.
