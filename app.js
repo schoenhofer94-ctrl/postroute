@@ -266,7 +266,8 @@ $("organicMapsBtn").addEventListener("click", () => {
   }
   // Organic Maps documented iOS deep link: open navigation to a coordinate.
   const destination = `${item.lat},${item.lon}`;
-  const url = `om://v2/nav?destination=${encodeURIComponent(destination)}&destination_name=${encodeURIComponent(item.address)}&mode=drive`;
+  // Organic Maps route deep links expect an origin and destination; use its current-location token.
+  const url = `om://v2/nav?origin=currentLocation&destination=${encodeURIComponent(destination)}&destination_name=${encodeURIComponent(item.address)}&mode=drive`;
   $("navDetail").textContent = "Organic Maps wird geöffnet. Falls nichts passiert, prüfe, ob Organic Maps installiert ist und starte die App einmal manuell.";
   window.location.href = url;
 });

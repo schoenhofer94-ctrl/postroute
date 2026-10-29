@@ -53,3 +53,8 @@ VERSION 5 – ORGANIC MAPS VERKNÜPFUNG
 - Organic Maps muss installiert sein und die passenden Offline-Karten müssen vorher heruntergeladen sein.
 - Das Öffnen und der genaue Navigationsmodus sollten auf dem iPhone getestet werden.
 - Die PostRoute-App selbst berechnet weiterhin keine Offline-Routen; die Offline-Navigation erfolgt in Organic Maps.
+
+
+VERSION 6 – ORGANIC MAPS DEEP LINK FIX
+- The Organic Maps route link now includes origin=currentLocation plus destination coordinates.
+- This follows the documented v2 route-link shape. Test on the target iPhone; app behavior can vary by version.
