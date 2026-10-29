@@ -5,6 +5,8 @@ let splitBefore = 0;
 let selectedPoint = null;
 let markers = [];
 let routeLine = null;
+let navigationLine = null;
+let currentLocation = null;
 
 const $ = id => document.getElementById(id);
 const map = L.map("map").setView(defaultCenter, 15);
@@ -45,6 +47,7 @@ function clearMapMarkers() {
   markers.forEach(m => map.removeLayer(m));
   markers = [];
   if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  if (navigationLine) { map.removeLayer(navigationLine); navigationLine = null; }
 }
 function render() {
   clearMapMarkers();
@@ -95,13 +98,33 @@ $("splitBtn").addEventListener("click", () => {
   $("splitSelect").focus();
   $("nextMessage").textContent = "Wähle unten aus, vor welchem Ziel Abschnitt 2 beginnen soll.";
 });
-function nextOpen() {
+async function nextOpen() {
   const item = route.find(x => x.status === "open");
-  if (!item) { $("nextMessage").textContent = route.length ? "Keine offenen Ziele mehr." : "Füge zuerst Adressen hinzu."; return; }
-  map.setView([item.lat,item.lon],18);
+  if (!item) { $("nextMessage").textContent = route.length ? "Keine offenen Ziele mehr." : "Füge zuerst Ziele hinzu."; return; }
   const index = route.indexOf(item);
+  map.setView([item.lat,item.lon],17);
   markers[index]?.openPopup();
-  $("nextMessage").textContent = `Nächstes offenes Ziel: ${item.address}`;
+  if (!currentLocation) {
+    $("nextMessage").textContent = `Nächstes offenes Ziel: ${item.address}. Tippe zuerst auf „Mein Standort“, damit eine Strecke von deinem GPS-Standort berechnet werden kann.`;
+    return;
+  }
+  $("nextMessage").textContent = "Straßenroute wird berechnet …";
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${currentLocation[1]},${currentLocation[0]};${item.lon},${item.lat}?overview=full&geometries=geojson`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Routingdienst nicht erreichbar");
+    const data = await response.json();
+    if (data.code !== "Ok" || !data.routes?.length) throw new Error("Keine Straßenroute gefunden");
+    const coords = data.routes[0].geometry.coordinates.map(c => [c[1],c[0]]);
+    if (navigationLine) map.removeLayer(navigationLine);
+    navigationLine = L.polyline(coords, {color:"#176b52", weight:6, opacity:.9}).addTo(map);
+    map.fitBounds(navigationLine.getBounds(), {padding:[28,28]});
+    const km = (data.routes[0].distance / 1000).toFixed(1);
+    const mins = Math.round(data.routes[0].duration / 60);
+    $("nextMessage").textContent = `Nächstes Ziel: ${item.address} · Straßenroute ca. ${km} km / ${mins} Min.`;
+  } catch {
+    $("nextMessage").textContent = `Nächstes Ziel: ${item.address}. Straßenroute konnte nicht berechnet werden; bitte Internetverbindung prüfen.`;
+  }
 }
 $("nextBtn").addEventListener("click", nextOpen);
 let pendingMapPoint = null;
@@ -160,9 +183,10 @@ $("locateBtn").addEventListener("click", () => {
   $("nextMessage").textContent = "Standort wird ermittelt …";
   navigator.geolocation.getCurrentPosition(pos => {
     const p = [pos.coords.latitude,pos.coords.longitude];
+    currentLocation = p;
     L.circleMarker(p,{radius:8,color:"#176b52",fillColor:"#8de0b9",fillOpacity:1}).addTo(map).bindPopup("Dein aktueller Standort").openPopup();
     map.setView(p,17);
-    $("nextMessage").textContent = "Dein Standort wurde angezeigt. Tippe auf „Nächstes offenes Ziel“, um das nächste Ziel auf der Karte zu finden.";
+    $("nextMessage").textContent = "Dein Standort wurde angezeigt. Tippe auf „Nächstes offenes Ziel“, um eine Straßenroute zum nächsten Ziel zu berechnen.";
   }, () => $("nextMessage").textContent = "Standort konnte nicht ermittelt werden. Bitte GPS-Berechtigung prüfen.", {enableHighAccuracy:true,timeout:12000});
 });
 $("exportBtn").addEventListener("click", () => {

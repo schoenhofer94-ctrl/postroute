@@ -27,3 +27,12 @@ Hosting). Die lokale Adresse localhost auf dem PC funktioniert nicht direkt als 
 
 Hinweis: Für OpenStreetMap und Nominatim gelten Nutzungsrichtlinien. Bitte keine automatisierten Massenabfragen
 durchführen. Dieses Beispiel fragt nur bei einer manuellen Suche ab.
+
+
+VERSION 3 – STRASSENROUTE (ONLINE-PROTOTYP)
+- „Mein Standort“ speichert den aktuellen GPS-Standort.
+- „Nächstes offenes Ziel“ versucht eine Straßenroute vom GPS-Standort zum Ziel einzuzeichnen.
+- Diese Funktion benötigt Internet und nutzt einen öffentlichen OSRM-Demodienst. Sie ist nicht für garantierte
+  Navigation im Produktivbetrieb gedacht.
+- Noch KEINE Offline-Routenberechnung, KEINE Offline-Karten und KEINE Sprachführung.
+- Für Offline-Betrieb müssen Kartendaten und Routing-Engine später ausdrücklich eingebaut und auf dem iPhone getestet werden.
