@@ -61,3 +61,9 @@ VERSION 6 – ORGANIC MAPS DEEP LINK FIX
 
 
 Version 7: Der Organic-Maps-Button verwendet jetzt die tatsächlichen GPS-Koordinaten als Startpunkt und öffnet die dokumentierte Routenplanung (om://v2/dir). Organic Maps soll die Route anzeigen; dort anschließend Navigation starten.
+
+
+VERSION 8 – ORGANIC MAPS OFFIZIELLER ROUTENLINK
+- Verwendet den auf der offiziellen Organic-Maps-API-Testseite dokumentierten /route-Link mit Start- und Zielkoordinaten.
+- Der Link wird als https://omaps.app/route geöffnet, damit iOS den Universal Link an Organic Maps übergeben kann.
+- Auf dem iPhone testen; falls eine Auswahl erscheint, „In Organic Maps öffnen“ bestätigen.

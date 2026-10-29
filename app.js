@@ -267,10 +267,9 @@ $("organicMapsBtn").addEventListener("click", () => {
   const openRoute = (lat, lon) => {
     const origin = `${lat},${lon}`;
     const destination = `${item.lat},${item.lon}`;
-    // Use explicit GPS coordinates and the documented route-planning endpoint.
-    // /dir previews the route so the user can confirm it inside Organic Maps.
-    const url = `om://v2/dir?origin=${encodeURIComponent(origin)}&origin_name=Mein%20Standort&destination=${encodeURIComponent(destination)}&destination_name=${encodeURIComponent(item.address)}&mode=drive`;
-    $("navDetail").textContent = "Organic Maps wird geöffnet und sollte die Route anzeigen. Bitte dort die Navigation starten.";
+    // Use the official Organic Maps public /route deep link documented at omaps.app/api.
+    const url = `https://omaps.app/route?sll=${encodeURIComponent(origin)}&saddr=${encodeURIComponent("Mein Standort")}&dll=${encodeURIComponent(destination)}&daddr=${encodeURIComponent(item.address)}&type=vehicle`;
+    $("navDetail").textContent = "Organic Maps wird mit dem Routenlink geöffnet. Falls Safari fragt, bestätige bitte „In Organic Maps öffnen“.";
     window.location.href = url;
   };
   if (currentLocation && Number.isFinite(currentLocation.lat) && Number.isFinite(currentLocation.lon)) {
