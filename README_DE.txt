@@ -45,3 +45,11 @@ VERSION 4 – LIVE-STANDORT + NAVIGATIONSÜBERSICHT
 - Routing und Karten benötigen weiterhin Internet. Keine Offline-Karte, keine Offline-Routenberechnung,
   keine Turn-by-turn-/Sprachanweisungen und keine garantierte Hintergrund-GPS-Nutzung.
 - Öffentliche OSRM-Demo ist nur für Tests geeignet; kein garantierter Produktionsdienst.
+
+
+VERSION 5 – ORGANIC MAPS VERKNÜPFUNG
+- Zusätzlicher Knopf „In Organic Maps navigieren“ für das nächste offene Ziel.
+- Öffnet Organic Maps über dessen iOS Deep Link mit Zielkoordinaten und Fahrmodus.
+- Organic Maps muss installiert sein und die passenden Offline-Karten müssen vorher heruntergeladen sein.
+- Das Öffnen und der genaue Navigationsmodus sollten auf dem iPhone getestet werden.
+- Die PostRoute-App selbst berechnet weiterhin keine Offline-Routen; die Offline-Navigation erfolgt in Organic Maps.

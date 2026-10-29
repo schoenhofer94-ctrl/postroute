@@ -258,6 +258,18 @@ $("followBtn").addEventListener("click", () => {
   }, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
   $("stopFollowBtn").disabled=false;
 });
+$("organicMapsBtn").addEventListener("click", () => {
+  const item = route.find(x => x.id === activeTargetId && x.status === "open") || route.find(x => x.status === "open");
+  if (!item) {
+    $("navDetail").textContent = "Bitte füge zuerst ein Ziel hinzu oder wähle ein offenes Ziel.";
+    return;
+  }
+  // Organic Maps documented iOS deep link: open navigation to a coordinate.
+  const destination = `${item.lat},${item.lon}`;
+  const url = `om://v2/nav?destination=${encodeURIComponent(destination)}&destination_name=${encodeURIComponent(item.address)}&mode=drive`;
+  $("navDetail").textContent = "Organic Maps wird geöffnet. Falls nichts passiert, prüfe, ob Organic Maps installiert ist und starte die App einmal manuell.";
+  window.location.href = url;
+});
 $("stopFollowBtn").addEventListener("click", () => {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   watchId=null;
