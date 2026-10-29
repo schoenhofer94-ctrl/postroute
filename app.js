@@ -264,12 +264,27 @@ $("organicMapsBtn").addEventListener("click", () => {
     $("navDetail").textContent = "Bitte füge zuerst ein Ziel hinzu oder wähle ein offenes Ziel.";
     return;
   }
-  // Organic Maps documented iOS deep link: open navigation to a coordinate.
-  const destination = `${item.lat},${item.lon}`;
-  // Organic Maps route deep links expect an origin and destination; use its current-location token.
-  const url = `om://v2/nav?origin=currentLocation&destination=${encodeURIComponent(destination)}&destination_name=${encodeURIComponent(item.address)}&mode=drive`;
-  $("navDetail").textContent = "Organic Maps wird geöffnet. Falls nichts passiert, prüfe, ob Organic Maps installiert ist und starte die App einmal manuell.";
-  window.location.href = url;
+  const openRoute = (lat, lon) => {
+    const origin = `${lat},${lon}`;
+    const destination = `${item.lat},${item.lon}`;
+    // Use explicit GPS coordinates and the documented route-planning endpoint.
+    // /dir previews the route so the user can confirm it inside Organic Maps.
+    const url = `om://v2/dir?origin=${encodeURIComponent(origin)}&origin_name=Mein%20Standort&destination=${encodeURIComponent(destination)}&destination_name=${encodeURIComponent(item.address)}&mode=drive`;
+    $("navDetail").textContent = "Organic Maps wird geöffnet und sollte die Route anzeigen. Bitte dort die Navigation starten.";
+    window.location.href = url;
+  };
+  if (currentLocation && Number.isFinite(currentLocation.lat) && Number.isFinite(currentLocation.lon)) {
+    openRoute(currentLocation.lat, currentLocation.lon);
+  } else if (navigator.geolocation) {
+    $("navDetail").textContent = "Ermittle deinen aktuellen Standort …";
+    navigator.geolocation.getCurrentPosition(
+      pos => openRoute(pos.coords.latitude, pos.coords.longitude),
+      () => { $("navDetail").textContent = "Standort konnte nicht ermittelt werden. Bitte zuerst „Standort verfolgen“ aktivieren und erneut versuchen."; },
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+    );
+  } else {
+    $("navDetail").textContent = "Dieses Gerät stellt keine Standortermittlung bereit.";
+  }
 });
 $("stopFollowBtn").addEventListener("click", () => {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);

@@ -58,3 +58,6 @@ VERSION 5 – ORGANIC MAPS VERKNÜPFUNG
 VERSION 6 – ORGANIC MAPS DEEP LINK FIX
 - The Organic Maps route link now includes origin=currentLocation plus destination coordinates.
 - This follows the documented v2 route-link shape. Test on the target iPhone; app behavior can vary by version.
+
+
+Version 7: Der Organic-Maps-Button verwendet jetzt die tatsächlichen GPS-Koordinaten als Startpunkt und öffnet die dokumentierte Routenplanung (om://v2/dir). Organic Maps soll die Route anzeigen; dort anschließend Navigation starten.
