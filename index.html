@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#176b52">
+  <title>PostRoute</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+<header>
+  <div><h1>📬 PostRoute</h1><p>Deine persönliche Zustellroute</p></div>
+  <button id="locateBtn" class="secondary">📍 Mein Standort</button>
+</header>
+<main>
+  <section class="search-panel card">
+    <label for="addressSearch">Adresse suchen</label>
+    <div class="search-row">
+      <input id="addressSearch" type="search" placeholder="Straße + Hausnummer, z. B. Hauptstraße 12, Kilb">
+      <button id="searchBtn">Suchen</button>
+    </div>
+    <p class="hint">Oder tippe direkt auf ein Haus bzw. einen Punkt auf der Karte.</p>
+    <div id="searchMessage" role="status"></div>
+    <div id="searchResults"></div>
+  </section>
+
+  <section class="card map-card">
+    <div class="section-heading">
+      <h2>Karte</h2><span class="small">Zum Hinzufügen auf die Karte tippen</span>
+    </div>
+    <div id="map" aria-label="Karte"></div>
+    <div class="map-actions">
+      <button id="addMapPointBtn" class="secondary">➕ Kartenpunkt zur Route</button>
+      <button id="clearSearchBtn" class="secondary">Suchauswahl löschen</button>
+    </div>
+    <p class="hint">Die Karte und Adresssuche benötigen Internet. Die ausgewählten Ziele bleiben auf diesem Gerät gespeichert.</p>
+  </section>
+
+  <section class="card">
+    <div class="section-heading">
+      <h2>Meine Zustellroute</h2><span id="routeCount" class="pill">0 Ziele</span>
+    </div>
+    <div class="route-tools">
+      <button id="nextBtn">➡️ Nächstes offenes Ziel</button>
+      <button id="splitBtn" class="secondary">✂️ Abschnittsgrenze festlegen</button>
+    </div>
+    <p id="nextMessage" role="status" class="status-message"></p>
+    <div class="split-row">
+      <label for="splitSelect">Abschnitt 2 beginnt vor Ziel:</label>
+      <select id="splitSelect"><option value="0">Kein Abschnitt 2</option></select>
+    </div>
+    <div id="routeList"></div>
+    <div class="bottom-actions">
+      <button id="exportBtn" class="secondary">Route exportieren</button>
+      <label class="import-label secondary">Route importieren<input id="importInput" type="file" accept="application/json,.json" hidden></label>
+      <button id="clearRouteBtn" class="danger">Route leeren</button>
+    </div>
+  </section>
+</main>
+<footer>Hinweis: PostRoute ist ein privater Prototyp, keine offizielle App der Österreichischen Post.</footer>
+
+<dialog id="pointDialog">
+  <form method="dialog" id="pointForm">
+    <h2>Adresse zur Route hinzufügen</h2>
+    <p id="pointCoordinates" class="hint"></p>
+    <label for="pointAddress">Adresse / Beschreibung</label>
+    <input id="pointAddress" required placeholder="z. B. Hauptstraße 12, Kilb">
+    <div class="dialog-actions">
+      <button value="cancel" class="secondary">Abbrechen</button>
+      <button id="confirmPointBtn" value="default">Zur Route hinzufügen</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

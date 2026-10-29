@@ -1,0 +1,10 @@
+{
+  "name": "PostRoute – Zustellroute",
+  "short_name": "PostRoute",
+  "description": "Persönliche Zustellroute mit Adresssuche und Karte",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f1f5f3",
+  "theme_color": "#176b52",
+  "icons": []
+}
