@@ -1,311 +1,58 @@
-const STORAGE_KEY = "postroute-v2";
-const defaultCenter = [48.101, 15.408]; // Kilb, Niederösterreich
-let route = [];
-let splitBefore = 0;
-let selectedPoint = null;
-let markers = [];
-let routeLine = null;
-let navigationLine = null;
-let currentLocation = null;
-let currentMarker = null;
-let watchId = null;
-let lastRoutePoint = null;
-let activeTargetId = null;
-
-const $ = id => document.getElementById(id);
-const map = L.map("map").setView(defaultCenter, 15);
-function updateConnectionStatus() {
-  const el = document.getElementById("connectionStatus");
-  if (!el) return;
-  const online = navigator.onLine;
-  el.textContent = online ? "● Online" : "● Offline-Modus";
-  el.classList.toggle("is-offline", !online);
-  const help = document.getElementById("offlineHelp");
-  if (help && !online) help.textContent = "Du bist offline: gespeicherte Zustellziele und Status bleiben verfügbar. Die Hintergrundkarte, Adresssuche und Straßenrouten in PostRoute sind nicht offline verfügbar. Für die Offline-Navigation öffne ein Ziel in Organic Maps.";
-}
-window.addEventListener("online", updateConnectionStatus);
-window.addEventListener("offline", updateConnectionStatus);
-
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-}).addTo(map);
-
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({route, splitBefore}));
-}
-function load() {
-  try {
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    route = Array.isArray(data.route) ? data.route : [];
-    splitBefore = Number(data.splitBefore) || 0;
-  } catch { route = []; splitBefore = 0; }
-  render();
-}
-function safeText(value) {
-  const span = document.createElement("span");
-  span.textContent = value;
-  return span.innerHTML;
-}
-function message(text, isError=false) {
-  $("searchMessage").textContent = text;
-  $("searchMessage").style.color = isError ? "#a82f2f" : "#176b52";
-}
-function addTarget(target) {
-  const duplicate = route.some(x => x.lat.toFixed(5) === target.lat.toFixed(5) && x.lon.toFixed(5) === target.lon.toFixed(5));
-  if (duplicate) { message("Dieser Kartenpunkt ist bereits in deiner Route.", true); return; }
-  route.push({...target, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()), status:"open"});
-  selectedPoint = null;
-  render();
-  message("Adresse wurde zur Route hinzugefügt.");
-}
-function clearMapMarkers() {
-  markers.forEach(m => map.removeLayer(m));
-  markers = [];
-  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-  if (navigationLine) { map.removeLayer(navigationLine); navigationLine = null; }
-}
-function render() {
-  clearMapMarkers();
-  route.forEach((item, index) => {
-    const marker = L.marker([item.lat, item.lon]).addTo(map);
-    const section = splitBefore && index >= splitBefore ? "Abschnitt 2" : "Abschnitt 1";
-    marker.bindPopup(`<b>${index+1}. ${safeText(item.address)}</b><br>${section}<br>Status: ${item.status === "done" ? "Erledigt" : item.status === "skipped" ? "Übersprungen" : "Offen"}`);
-    markers.push(marker);
-  });
-  if (route.length > 1) {
-    routeLine = L.polyline(route.map(x => [x.lat,x.lon]), {color:"#176b52", weight:4, opacity:.8, dashArray:"7 6"}).addTo(map);
-  }
-  $("routeCount").textContent = `${route.length} Ziele`;
-  $("routeList").innerHTML = route.length ? route.map((item,i) => `
-    <div class="route-item ${item.status}" data-id="${item.id}">
-      <div class="route-number">${i+1}</div>
-      <div><div class="route-address">${safeText(item.address)}</div>
-      <div class="route-meta">${splitBefore && i >= splitBefore ? "Abschnitt 2" : "Abschnitt 1"} · ${item.status === "done" ? "Erledigt" : item.status === "skipped" ? "Übersprungen" : "Offen"}</div></div>
-      <div class="item-actions">
-        <button class="secondary" data-action="focus" data-id="${item.id}">Karte</button>
-        <button data-action="done" data-id="${item.id}">${item.status === "done" ? "Wieder öffnen" : "Erledigt"}</button>
-        <button class="secondary" data-action="skip" data-id="${item.id}">${item.status === "skipped" ? "Wieder öffnen" : "Überspringen"}</button>
-        <button class="danger" data-action="delete" data-id="${item.id}">✕</button>
-      </div>
-    </div>`).join("") : '<p class="hint">Noch keine Ziele. Suche eine Adresse oder tippe auf die Karte.</p>';
-  const select = $("splitSelect");
-  const old = splitBefore;
-  select.innerHTML = '<option value="0">Kein Abschnitt 2</option>' + route.map((x,i) => `<option value="${i}">Abschnitt 2 beginnt vor Ziel ${i+1}: ${safeText(x.address)}</option>`).join("");
-  select.value = route.length && old > 0 && old < route.length ? String(old) : "0";
-  splitBefore = Number(select.value);
-  save();
-}
-$("routeList").addEventListener("click", e => {
-  const btn = e.target.closest("button[data-action]");
-  if (!btn) return;
-  const index = route.findIndex(x => x.id === btn.dataset.id);
-  if (index < 0) return;
-  const item = route[index];
-  switch(btn.dataset.action) {
-    case "focus": map.setView([item.lat,item.lon],18); markers[index]?.openPopup(); break;
-    case "done": item.status = item.status === "done" ? "open" : "done"; render(); break;
-    case "skip": item.status = item.status === "skipped" ? "open" : "skipped"; render(); break;
-    case "delete": route.splice(index,1); if (splitBefore > index) splitBefore--; render(); break;
-  }
-});
-$("splitSelect").addEventListener("change", () => { splitBefore = Number($("splitSelect").value); render(); });
-$("splitBtn").addEventListener("click", () => {
-  $("splitSelect").focus();
-  $("nextMessage").textContent = "Wähle unten aus, vor welchem Ziel Abschnitt 2 beginnen soll.";
-});
-async function nextOpen() {
-  const item = route.find(x => x.status === "open");
-  if (!item) {
-    $("nextMessage").textContent = route.length ? "Keine offenen Ziele mehr." : "Füge zuerst Ziele hinzu.";
-    $("navTarget").textContent = "Keine offenen Ziele";
-    $("navDetail").textContent = "Füge Ziele hinzu oder markiere ein übersprungenes Ziel wieder als offen.";
-    return;
-  }
-  activeTargetId = item.id;
-  const index = route.indexOf(item);
-  map.setView([item.lat,item.lon],17);
-  markers[index]?.openPopup();
-  $("navTarget").textContent = item.address;
-  if (!currentLocation) {
-    $("navDetail").textContent = "Tippe auf „Mein Standort“ oder „Standort verfolgen“, um eine Strecke von deinem GPS-Standort berechnen zu lassen.";
-    $("nextMessage").textContent = `Nächstes offenes Ziel: ${item.address}.`;
-    return;
-  }
-  await calculateNavigation(item);
-}
-async function calculateNavigation(item) {
-  if (!item || !currentLocation) return;
-  $("navDetail").textContent = "Straßenroute wird berechnet …";
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${currentLocation[1]},${currentLocation[0]};${item.lon},${item.lat}?overview=full&geometries=geojson`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Routingdienst nicht erreichbar");
-    const data = await response.json();
-    if (data.code !== "Ok" || !data.routes?.length) throw new Error("Keine Straßenroute gefunden");
-    const coords = data.routes[0].geometry.coordinates.map(c => [c[1],c[0]]);
-    if (navigationLine) map.removeLayer(navigationLine);
-    navigationLine = L.polyline(coords, {color:"#176b52", weight:6, opacity:.9}).addTo(map);
-    map.fitBounds(navigationLine.getBounds(), {padding:[28,28]});
-    const km = (data.routes[0].distance / 1000).toFixed(1);
-    const mins = Math.round(data.routes[0].duration / 60);
-    $("navTarget").textContent = item.address;
-    $("navDetail").textContent = `Straßenroute: ca. ${km} km · ${mins} Min. (Schätzung). Die Karte zeigt die Route; es gibt noch keine Abbiegeansagen.`;
-    $("nextMessage").textContent = `Nächstes Ziel: ${item.address} · ca. ${km} km / ${mins} Min.`;
-  } catch {
-    $("navDetail").textContent = "Straßenroute konnte nicht berechnet werden. Prüfe die Internetverbindung.";
-    $("nextMessage").textContent = `Nächstes Ziel: ${item.address}. Straßenroute nicht verfügbar.`;
-  }
-}
-$("nextBtn").addEventListener("click", nextOpen);
-let pendingMapPoint = null;
-map.on("click", e => {
-  pendingMapPoint = {lat:e.latlng.lat, lon:e.latlng.lng};
-  $("pointCoordinates").textContent = `Kartenpunkt: ${pendingMapPoint.lat.toFixed(5)}, ${pendingMapPoint.lon.toFixed(5)}. Die Adresse kannst du selbst eintragen.`;
-  $("pointAddress").value = "";
-  $("pointDialog").showModal();
-});
-$("addMapPointBtn").addEventListener("click", () => {
-  if (!pendingMapPoint) { message("Tippe zuerst auf die Karte, um einen Punkt auszuwählen.", true); return; }
-  $("pointDialog").showModal();
-});
-$("pointForm").addEventListener("submit", e => {
-  if (e.submitter && e.submitter.value === "cancel") return;
-  e.preventDefault();
-  if (!pendingMapPoint || !$("pointAddress").value.trim()) return;
-  addTarget({...pendingMapPoint, address:$("pointAddress").value.trim()});
-  $("pointDialog").close();
-});
-$("clearSearchBtn").addEventListener("click", () => { selectedPoint = null; pendingMapPoint = null; $("searchResults").innerHTML=""; message("Suchauswahl gelöscht."); });
-async function searchAddress() {
-  const query = $("addressSearch").value.trim();
-  if (!query) { message("Bitte gib eine Adresse ein.", true); return; }
-  message("Suche Adresse …");
-  $("searchResults").innerHTML = "";
-  try {
-    const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=" + encodeURIComponent(query);
-    const response = await fetch(url, {headers: {"Accept-Language":"de"}});
-    if (!response.ok) throw new Error("Die Suche ist momentan nicht erreichbar.");
-    const results = await response.json();
-    if (!results.length) { message("Keine passende Adresse gefunden. Versuche Straße, Hausnummer und Kilb.", true); return; }
-    message("Wähle den passenden Treffer aus:");
-    $("searchResults").innerHTML = results.map((r,i) => `<div class="result-item"><div>${safeText(r.display_name)}</div><button data-result="${i}">Ansehen</button></div>`).join("");
-    $("searchResults")._results = results;
-  } catch (err) { message("Adresssuche fehlgeschlagen. Bitte Internetverbindung prüfen und erneut versuchen.", true); }
-}
-$("searchBtn").addEventListener("click", searchAddress);
-$("addressSearch").addEventListener("keydown", e => { if(e.key === "Enter") searchAddress(); });
-$("searchResults").addEventListener("click", e => {
-  const btn = e.target.closest("button[data-result]");
-  if (!btn) return;
-  const r = $("searchResults")._results?.[Number(btn.dataset.result)];
-  if (!r) return;
-  selectedPoint = {lat:Number(r.lat),lon:Number(r.lon),address:r.display_name};
-  pendingMapPoint = {lat:selectedPoint.lat,lon:selectedPoint.lon};
-  map.setView([selectedPoint.lat,selectedPoint.lon],18);
-  L.popup().setLatLng([selectedPoint.lat,selectedPoint.lon]).setContent(`<b>${safeText(r.display_name)}</b><br><button id="popupAdd">Zur Route hinzufügen</button>`).openOn(map);
-  setTimeout(() => {
-    const popupAdd = document.getElementById("popupAdd");
-    if (popupAdd) popupAdd.onclick = () => { addTarget(selectedPoint); map.closePopup(); };
-  }, 0);
-});
-$("locateBtn").addEventListener("click", () => {
-  if (!navigator.geolocation) { $("nextMessage").textContent = "GPS ist in diesem Browser nicht verfügbar."; return; }
-  $("nextMessage").textContent = "Standort wird ermittelt …";
-  navigator.geolocation.getCurrentPosition(pos => {
-    const p = [pos.coords.latitude,pos.coords.longitude];
-    updateCurrentLocation(p);
-    map.setView(p,17);
-    $("nextMessage").textContent = "Dein Standort wurde angezeigt. Tippe auf „Nächstes offenes Ziel“, um eine Straßenroute zum nächsten Ziel zu berechnen.";
-  }, () => $("nextMessage").textContent = "Standort konnte nicht ermittelt werden. Bitte GPS-Berechtigung prüfen.", {enableHighAccuracy:true,timeout:12000});
-});
-$("exportBtn").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify({route,splitBefore},null,2)],{type:"application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href=url; a.download="postroute-backup.json"; a.click(); URL.revokeObjectURL(url);
-});
-$("importInput").addEventListener("change", async e => {
-  const file=e.target.files[0]; if(!file)return;
-  try { const data=JSON.parse(await file.text()); if(!Array.isArray(data.route)) throw new Error(); route=data.route; splitBefore=Number(data.splitBefore)||0; render(); message("Route importiert."); }
-  catch { message("Datei konnte nicht importiert werden.",true); }
-  e.target.value="";
-});
-$("clearRouteBtn").addEventListener("click", () => {
-  if(confirm("Möchtest du wirklich alle Ziele aus der Route löschen?")) { route=[]; splitBefore=0; render(); $("nextMessage").textContent=""; }
-});
-function updateCurrentLocation(p) {
-  currentLocation = p;
-  if (!currentMarker) {
-    currentMarker = L.circleMarker(p,{radius:8,color:"#1458b0",weight:3,fillColor:"#76b7ff",fillOpacity:1})
-      .addTo(map).bindPopup("Dein aktueller Standort");
-  } else {
-    currentMarker.setLatLng(p);
-  }
-  // Keep the live position visible without zooming the map on every GPS update.
-  const target = route.find(x => x.id === activeTargetId && x.status === "open") || route.find(x => x.status === "open");
-  if (target && (!lastRoutePoint || distanceMeters(lastRoutePoint,p) > 60)) {
-    lastRoutePoint = p;
-    calculateNavigation(target);
-  }
-}
-function distanceMeters(a,b) {
-  const R=6371000, rad=x=>x*Math.PI/180;
-  const dLat=rad(b[0]-a[0]), dLon=rad(b[1]-a[1]);
-  const v=Math.sin(dLat/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dLon/2)**2;
-  return 2*R*Math.atan2(Math.sqrt(v),Math.sqrt(1-v));
-}
-$("followBtn").addEventListener("click", () => {
-  if (!navigator.geolocation) { $("navDetail").textContent = "GPS wird von diesem Browser nicht unterstützt."; return; }
-  if (watchId !== null) return;
-  $("navDetail").textContent = "Standortverfolgung läuft. Bitte GPS-Zugriff erlauben.";
-  watchId = navigator.geolocation.watchPosition(pos => {
-    const p=[pos.coords.latitude,pos.coords.longitude];
-    const first = !currentLocation;
-    updateCurrentLocation(p);
-    if (first) map.setView(p,17);
-    $("stopFollowBtn").disabled=false;
-    $("followBtn").textContent="🛰️ Standort wird verfolgt";
-  }, () => {
-    $("navDetail").textContent = "Standort konnte nicht ermittelt werden. Bitte Standortfreigabe prüfen.";
-  }, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
-  $("stopFollowBtn").disabled=false;
-});
-$("organicMapsBtn").addEventListener("click", () => {
-  const item = route.find(x => x.id === activeTargetId && x.status === "open") || route.find(x => x.status === "open");
-  if (!item) {
-    $("navDetail").textContent = "Bitte füge zuerst ein Ziel hinzu oder wähle ein offenes Ziel.";
-    return;
-  }
-  const openRoute = (lat, lon) => {
-    const origin = `${lat},${lon}`;
-    const destination = `${item.lat},${item.lon}`;
-    // Use the official Organic Maps public /route deep link documented at omaps.app/api.
-    const url = `https://omaps.app/route?sll=${encodeURIComponent(origin)}&saddr=${encodeURIComponent("Mein Standort")}&dll=${encodeURIComponent(destination)}&daddr=${encodeURIComponent(item.address)}&type=vehicle`;
-    $("navDetail").textContent = "Organic Maps wird mit dem Routenlink geöffnet. Falls Safari fragt, bestätige bitte „In Organic Maps öffnen“.";
-    window.location.href = url;
-  };
-  if (Array.isArray(currentLocation) && Number.isFinite(currentLocation[0]) && Number.isFinite(currentLocation[1])) {
-    openRoute(currentLocation[0], currentLocation[1]);
-  } else if (navigator.geolocation) {
-    $("navDetail").textContent = "Ermittle deinen aktuellen Standort …";
-    navigator.geolocation.getCurrentPosition(
-      pos => openRoute(pos.coords.latitude, pos.coords.longitude),
-      () => { $("navDetail").textContent = "Standort konnte nicht ermittelt werden. Bitte zuerst „Standort verfolgen“ aktivieren und erneut versuchen."; },
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-    );
-  } else {
-    $("navDetail").textContent = "Dieses Gerät stellt keine Standortermittlung bereit.";
-  }
-});
-$("stopFollowBtn").addEventListener("click", () => {
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-  watchId=null;
-  $("stopFollowBtn").disabled=true;
-  $("followBtn").textContent="🛰️ Standort verfolgen";
-  $("navDetail").textContent = "Standortverfolgung gestoppt. Tippe auf „Standort verfolgen“, um sie fortzusetzen.";
-});
-if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js").catch(()=>{}));
-}
-updateConnectionStatus();
-load();
+const STORAGE_KEY="postroute-v2", DB_FILE="postroute-map.pmtiles";
+const defaultCenter=[15.408,48.101];
+let route=[], splitBefore=0, selectedPoint=null, markers=[], routeLine=null, navigationLine=null, currentLocation=null, currentMarker=null, watchId=null, lastRoutePoint=null, activeTargetId=null, pendingMapPoint=null, mapReady=false, offlineArchive=null;
+const $=id=>document.getElementById(id);
+const protocol=new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles",protocol.tile);
+const map=new maplibregl.Map({container:"map",center:defaultCenter,zoom:14,style:{version:8,sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#f3f1e9"}}]}});
+map.addControl(new maplibregl.NavigationControl(),"top-right");
+map.on("load",async()=>{mapReady=true; await restoreOfflineMap();});
+map.on("error",e=>{const msg=e?.error?.message||"Kartenfehler"; $("mapStatus").textContent="Kartenmeldung: "+msg;});
+function updateConnectionStatus(){const online=navigator.onLine; $("connectionStatus").textContent=online?"● Online":"● Offline-Modus"; $("connectionStatus").classList.toggle("is-offline",!online); if(!online)$("offlineHelp").textContent="Offline: Zustellliste bleibt verfügbar. Adresssuche und Straßenrouting benötigen weiterhin Internet; die lokale Karte funktioniert nur, wenn sie erfolgreich gespeichert wurde.";}
+window.addEventListener("online",updateConnectionStatus);window.addEventListener("offline",updateConnectionStatus);
+function safeText(v){const s=document.createElement("span");s.textContent=v;return s.innerHTML;}
+function message(t,err=false){$("searchMessage").textContent=t;$("searchMessage").style.color=err?"#a82f2f":"#176b52";}
+function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify({route,splitBefore}));}
+function load(){try{const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");route=Array.isArray(d.route)?d.route:[];splitBefore=Number(d.splitBefore)||0;}catch{route=[];splitBefore=0;}render();}
+function addTarget(t){if(route.some(x=>x.lat.toFixed(5)===t.lat.toFixed(5)&&x.lon.toFixed(5)===t.lon.toFixed(5))){message("Dieser Kartenpunkt ist bereits in deiner Route.",true);return;}route.push({...t,id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),status:"open"});selectedPoint=null;render();message("Adresse wurde zur Route hinzugefügt.");}
+function removeMapOverlays(){markers.forEach(m=>m.remove());markers=[];if(mapReady){if(map.getLayer("route-line"))map.removeLayer("route-line");if(map.getSource("route-line"))map.removeSource("route-line");if(map.getLayer("navigation-line"))map.removeLayer("navigation-line");if(map.getSource("navigation-line"))map.removeSource("navigation-line");}}
+function addLine(id,coords,color,dash){if(!mapReady||coords.length<2)return;if(map.getLayer(id))map.removeLayer(id);if(map.getSource(id))map.removeSource(id);map.addSource(id,{type:"geojson",data:{type:"Feature",geometry:{type:"LineString",coordinates:coords.map(p=>[p[1],p[0]])}}});map.addLayer({id,type:"line",source:id,paint:{"line-color":color,"line-width":id==="navigation-line"?5:3,"line-opacity":.85,...(dash?{"line-dasharray":[2,2]}:{})}});}
+function render(){if(!mapReady){save();return;}removeMapOverlays();route.forEach((it,i)=>{const el=document.createElement("div");el.style.cssText="width:28px;height:28px;border-radius:50%;background:#176b52;color:white;border:2px solid white;display:grid;place-items:center;font-weight:700;box-shadow:0 1px 4px #3338";el.textContent=String(i+1);const m=new maplibregl.Marker({element:el}).setLngLat([it.lon,it.lat]).setPopup(new maplibregl.Popup().setHTML(`<b>${i+1}. ${safeText(it.address)}</b><br>${splitBefore&&i>=splitBefore?"Abschnitt 2":"Abschnitt 1"}<br>Status: ${it.status==="done"?"Erledigt":it.status==="skipped"?"Übersprungen":"Offen"}`)).addTo(map);markers.push(m);});if(route.length>1)addLine("route-line",route.map(x=>[x.lat,x.lon]),"#176b52",true);
+$("routeCount").textContent=`${route.length} Ziele`;$("routeList").innerHTML=route.length?route.map((it,i)=>`<div class="route-item ${it.status}" data-id="${it.id}"><div class="route-number">${i+1}</div><div><div class="route-address">${safeText(it.address)}</div><div class="route-meta">${splitBefore&&i>=splitBefore?"Abschnitt 2":"Abschnitt 1"} · ${it.status==="done"?"Erledigt":it.status==="skipped"?"Übersprungen":"Offen"}</div></div><div class="item-actions"><button class="secondary" data-action="focus" data-id="${it.id}">Karte</button><button data-action="done" data-id="${it.id}">${it.status==="done"?"Wieder öffnen":"Erledigt"}</button><button class="secondary" data-action="skip" data-id="${it.id}">${it.status==="skipped"?"Wieder öffnen":"Überspringen"}</button><button class="danger" data-action="delete" data-id="${it.id}">✕</button></div></div>`).join(""):'<p class="hint">Noch keine Ziele. Suche eine Adresse oder tippe auf die Karte.</p>';
+const old=splitBefore;$("splitSelect").innerHTML='<option value="0">Kein Abschnitt 2</option>'+route.map((x,i)=>`<option value="${i}">Abschnitt 2 beginnt vor Ziel ${i+1}: ${safeText(x.address)}</option>`).join("");$("splitSelect").value=route.length&&old>0&&old<route.length?String(old):"0";splitBefore=Number($("splitSelect").value);save();if(currentLocation)updateCurrentMarker(currentLocation);}
+$("routeList").addEventListener("click",e=>{const b=e.target.closest("button[data-action]");if(!b)return;const i=route.findIndex(x=>x.id===b.dataset.id);if(i<0)return;const it=route[i];switch(b.dataset.action){case"focus":map.flyTo({center:[it.lon,it.lat],zoom:18});markers[i]?.togglePopup();break;case"done":it.status=it.status==="done"?"open":"done";render();break;case"skip":it.status=it.status==="skipped"?"open":"skipped";render();break;case"delete":route.splice(i,1);if(splitBefore>i)splitBefore--;render();break;}});
+$("splitSelect").addEventListener("change",()=>{splitBefore=Number($("splitSelect").value);render();});$("splitBtn").addEventListener("click",()=>{$("splitSelect").focus();$("nextMessage").textContent="Wähle unten aus, vor welchem Ziel Abschnitt 2 beginnen soll.";});
+async function nextOpen(){const it=route.find(x=>x.status==="open");if(!it){$("nextMessage").textContent=route.length?"Keine offenen Ziele mehr.":"Füge zuerst Ziele hinzu.";$("navTarget").textContent="Keine offenen Ziele";return;}activeTargetId=it.id;const i=route.indexOf(it);map.flyTo({center:[it.lon,it.lat],zoom:17});markers[i]?.togglePopup();$("navTarget").textContent=it.address;if(!currentLocation){$("navDetail").textContent="Tippe auf „Mein Standort“ oder „Standort verfolgen“, um die Strecke zu berechnen.";$("nextMessage").textContent=`Nächstes offenes Ziel: ${it.address}.`;return;}await calculateNavigation(it);}
+async function calculateNavigation(it){if(!it||!currentLocation)return;$("navDetail").textContent="Straßenroute wird online berechnet …";try{const u=`https://router.project-osrm.org/route/v1/driving/${currentLocation[1]},${currentLocation[0]};${it.lon},${it.lat}?overview=full&geometries=geojson`;const r=await fetch(u);if(!r.ok)throw Error();const d=await r.json();if(d.code!=="Ok"||!d.routes?.length)throw Error();const c=d.routes[0].geometry.coordinates.map(x=>[x[1],x[0]]);if(mapReady)addLine("navigation-line",c,"#176b52",false);map.fitBounds(c.map(x=>[x[1],x[0]]),{padding:28});const km=(d.routes[0].distance/1000).toFixed(1),mins=Math.round(d.routes[0].duration/60);$("navDetail").textContent=`Straßenroute: ca. ${km} km · ${mins} Min. (Schätzung). Routing benötigt Internet.`;$("nextMessage").textContent=`Nächstes Ziel: ${it.address} · ca. ${km} km / ${mins} Min.`;}catch{$("navDetail").textContent="Straßenroute konnte nicht berechnet werden. Prüfe die Internetverbindung.";$("nextMessage").textContent=`Nächstes Ziel: ${it.address}. Straßenroute nicht verfügbar.`;}}
+$("nextBtn").addEventListener("click",nextOpen);
+map.on("click",e=>{pendingMapPoint={lat:e.lngLat.lat,lon:e.lngLat.lng};$("pointCoordinates").textContent=`Kartenpunkt: ${pendingMapPoint.lat.toFixed(5)}, ${pendingMapPoint.lon.toFixed(5)}.`;$("pointAddress").value="";$("pointDialog").showModal();});
+$("addMapPointBtn").addEventListener("click",()=>{if(!pendingMapPoint){message("Tippe zuerst auf die Karte, um einen Punkt auszuwählen.",true);return;}$("pointDialog").showModal();});
+$("pointForm").addEventListener("submit",e=>{if(e.submitter&&e.submitter.value==="cancel")return;e.preventDefault();if(!pendingMapPoint||!$("pointAddress").value.trim())return;addTarget({...pendingMapPoint,address:$("pointAddress").value.trim()});$("pointDialog").close();});
+$("clearSearchBtn").addEventListener("click",()=>{selectedPoint=null;pendingMapPoint=null;$("searchResults").innerHTML="";message("Suchauswahl gelöscht.");});
+async function searchAddress(){const q=$("addressSearch").value.trim();if(!q){message("Bitte gib eine Adresse ein.",true);return;}message("Suche Adresse …");$("searchResults").innerHTML="";try{const r=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q="+encodeURIComponent(q),{headers:{"Accept-Language":"de"}});if(!r.ok)throw Error();const a=await r.json();if(!a.length){message("Keine passende Adresse gefunden.",true);return;}message("Wähle den passenden Treffer aus:");$("searchResults").innerHTML=a.map((x,i)=>`<div class="result-item"><div>${safeText(x.display_name)}</div><button data-result="${i}">Ansehen</button></div>`).join("");$("searchResults")._results=a;}catch{message("Adresssuche benötigt Internet.",true);}}
+$("searchBtn").addEventListener("click",searchAddress);$("addressSearch").addEventListener("keydown",e=>{if(e.key==="Enter")searchAddress();});
+$("searchResults").addEventListener("click",e=>{const b=e.target.closest("button[data-result]");if(!b)return;const r=$("searchResults")._results?.[Number(b.dataset.result)];if(!r)return;selectedPoint={lat:+r.lat,lon:+r.lon,address:r.display_name};pendingMapPoint={lat:selectedPoint.lat,lon:selectedPoint.lon};map.flyTo({center:[selectedPoint.lon,selectedPoint.lat],zoom:18});new maplibregl.Popup().setLngLat([selectedPoint.lon,selectedPoint.lat]).setHTML(`<b>${safeText(selectedPoint.address)}</b><br><button id="popupAdd">Zur Route hinzufügen</button>`).addTo(map);setTimeout(()=>{const b=document.getElementById("popupAdd");if(b)b.onclick=()=>addTarget(selectedPoint);},0);});
+function updateCurrentMarker(p){currentLocation=p;if(!currentMarker){const el=document.createElement("div");el.style.cssText="width:18px;height:18px;border-radius:50%;background:#76b7ff;border:3px solid #1458b0;box-shadow:0 0 0 5px #76b7ff44";currentMarker=new maplibregl.Marker({element:el}).setLngLat([p[1],p[0]]).setPopup(new maplibregl.Popup().setText("Dein aktueller Standort")).addTo(map);}else currentMarker.setLngLat([p[1],p[0]]);const target=route.find(x=>x.id===activeTargetId&&x.status==="open")||route.find(x=>x.status==="open");if(target&&(!lastRoutePoint||distanceMeters(lastRoutePoint,p)>60)){lastRoutePoint=p;calculateNavigation(target);}}
+function distanceMeters(a,b){const R=6371000,rad=x=>x*Math.PI/180,dLat=rad(b[0]-a[0]),dLon=rad(b[1]-a[1]),v=Math.sin(dLat/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dLon/2)**2;return 2*R*Math.atan2(Math.sqrt(v),Math.sqrt(1-v));}
+$("locateBtn").addEventListener("click",()=>{if(!navigator.geolocation){$("nextMessage").textContent="GPS ist in diesem Browser nicht verfügbar.";return;}navigator.geolocation.getCurrentPosition(pos=>{const p=[pos.coords.latitude,pos.coords.longitude];updateCurrentMarker(p);map.flyTo({center:[p[1],p[0]],zoom:17});},()=>{$("nextMessage").textContent="Standort konnte nicht ermittelt werden. Bitte GPS-Berechtigung prüfen.";},{enableHighAccuracy:true,timeout:12000});});
+$("followBtn").addEventListener("click",()=>{if(!navigator.geolocation){$("navDetail").textContent="GPS wird nicht unterstützt.";return;}if(watchId!==null)return;$("navDetail").textContent="Standortverfolgung läuft.";watchId=navigator.geolocation.watchPosition(pos=>{const p=[pos.coords.latitude,pos.coords.longitude],first=!currentLocation;updateCurrentMarker(p);if(first)map.flyTo({center:[p[1],p[0]],zoom:17});$("stopFollowBtn").disabled=false;$("followBtn").textContent="🛰️ Standort wird verfolgt";},()=>$("navDetail").textContent="Standort konnte nicht ermittelt werden.",{enableHighAccuracy:true,maximumAge:5000,timeout:15000});$("stopFollowBtn").disabled=false;});
+$("stopFollowBtn").addEventListener("click",()=>{if(watchId!==null)navigator.geolocation.clearWatch(watchId);watchId=null;$("stopFollowBtn").disabled=true;$("followBtn").textContent="🛰️ Standort verfolgen";$("navDetail").textContent="Standortverfolgung gestoppt.";});
+$("organicMapsBtn").addEventListener("click",()=>{const it=route.find(x=>x.id===activeTargetId&&x.status==="open")||route.find(x=>x.status==="open");if(!it){$("navDetail").textContent="Bitte füge zuerst ein Ziel hinzu.";return;}const open=(lat,lon)=>{location.href=`https://omaps.app/route?sll=${encodeURIComponent(`${lat},${lon}`)}&saddr=${encodeURIComponent("Mein Standort")}&dll=${encodeURIComponent(`${it.lat},${it.lon}`)}&daddr=${encodeURIComponent(it.address)}&type=vehicle`;};if(currentLocation)open(...currentLocation);else if(navigator.geolocation)navigator.geolocation.getCurrentPosition(p=>open(p.coords.latitude,p.coords.longitude),()=>$("navDetail").textContent="Standort konnte nicht ermittelt werden.");});
+$("exportBtn").addEventListener("click",()=>{const b=new Blob([JSON.stringify({route,splitBefore},null,2)],{type:"application/json"}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download="postroute-backup.json";a.click();URL.revokeObjectURL(u);});
+$("importInput").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!Array.isArray(d.route))throw Error();route=d.route;splitBefore=Number(d.splitBefore)||0;render();message("Route importiert.");}catch{message("Datei konnte nicht importiert werden.",true);}e.target.value="";});
+$("clearRouteBtn").addEventListener("click",()=>{if(confirm("Möchtest du wirklich alle Ziele aus der Route löschen?")){route=[];splitBefore=0;render();$("nextMessage").textContent="";}});
+function styleForArchive(url){return{version:8,name:"PostRoute Offline",glyphs:"https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",sources:{shortbread:{type:"vector",url,minzoom:0,maxzoom:14,attribution:"© OpenStreetMap contributors · Geofabrik Shortbread"}},layers:[
+{id:"background",type:"background",paint:{"background-color":"#f3f1e9"}},
+{id:"water",type:"fill",source:"shortbread","source-layer":"water_polygons",paint:{"fill-color":"#a8d4e5"}},
+{id:"buildings",type:"fill",source:"shortbread","source-layer":"buildings",minzoom:13,paint:{"fill-color":"#d7c7b7","fill-outline-color":"#b9a795"}},
+{id:"streets",type:"line",source:"shortbread","source-layer":"streets",paint:{"line-color":"#c7a77b","line-width":["interpolate",["linear"],["zoom"],5,.35,10,1,14,3]}},
+{id:"street-labels",type:"symbol",source:"shortbread","source-layer":"street_labels",minzoom:12,layout:{"symbol-placement":"line","text-field":["coalesce",["get","name"],["get","name:de"]],"text-font":["Open Sans Regular"],"text-size":10},paint:{"text-color":"#554a3f","text-halo-color":"#f8f6f0","text-halo-width":1.2}},
+{id:"place-labels",type:"symbol",source:"shortbread","source-layer":"place_labels",layout:{"text-field":["coalesce",["get","name"],["get","name:de"]],"text-font":["Open Sans Semibold"],"text-size":["interpolate",["linear"],["zoom"],5,10,12,15]},paint:{"text-color":"#243d34","text-halo-color":"#fff","text-halo-width":1.2}},
+{id:"addresses",type:"symbol",source:"shortbread","source-layer":"addresses",minzoom:14,layout:{"text-field":["get","housenumber"],"text-font":["Open Sans Regular"],"text-size":9},paint:{"text-color":"#54483f","text-halo-color":"#fff","text-halo-width":1}}]};}
+async function applyArchive(archive,header){offlineArchive=archive;protocol.add(archive);map.setStyle(styleForArchive("pmtiles://"+DB_FILE));$("mapStatus").textContent=`Offline-Karte bereit: Zoom ${header.minZoom}–${header.maxZoom}, ${header.numTileEntries} Kacheleinträge. Schriftdateien können beim ersten Laden Internet benötigen.`;map.once("styledata",()=>{map.jumpTo({center:defaultCenter,zoom:14});render();});}
+async function getOpfsFile(){if(!navigator.storage?.getDirectory)return null;const root=await navigator.storage.getDirectory();return await root.getFileHandle(DB_FILE).then(h=>h.getFile()).catch(()=>null);}
+async function restoreOfflineMap(){try{const f=await getOpfsFile();if(f){const a=new pmtiles.PMTiles(new pmtiles.FileSource(f));const h=await a.getHeader();await applyArchive(a,h);return;}}catch(e){console.warn(e);} $("mapStatus").textContent="Noch keine Offline-Karte im Gerätespeicher. Importiere die .pmtiles-Datei; Safari-Speicherplatz und Dateigröße können die Speicherung begrenzen.";}
+$("installMapBtn").addEventListener("click",()=>$("mapFileInput").click());
+$("mapFileInput").addEventListener("change",async e=>{const f=e.target.files?.[0];if(!f)return;$("mapStatus").textContent=`Datei ausgewählt (${(f.size/1024**3).toFixed(2)} GB). Prüfe Browser-Speicher …`;try{if(!navigator.storage?.getDirectory)throw Error("Dieser Browser unterstützt den benötigten lokalen Dateispeicher nicht.");const estimate=await navigator.storage.estimate();if(estimate.quota&&estimate.usage+f.size>estimate.quota)throw Error(`Voraussichtlich zu wenig Browser-Speicher. Verfügbar: ${((estimate.quota-estimate.usage)/1024**3).toFixed(2)} GB.`);const root=await navigator.storage.getDirectory();const handle=await root.getFileHandle(DB_FILE,{create:true});const writable=await handle.createWritable();$("mapStatus").textContent="Kopiere Kartendatei in den lokalen Browser-Speicher. Bitte Safari offen lassen.";await f.stream().pipeTo(writable);const stored=await handle.getFile();const archive=new pmtiles.PMTiles(new pmtiles.FileSource(stored));const header=await archive.getHeader();if(header.tileType!==1)throw Error("Die Datei enthält keine Vektorkacheln.");await applyArchive(archive,header);$("mapStatus").textContent=`Import abgeschlossen: ${(stored.size/1024**3).toFixed(2)} GB. Karte ist im lokalen Browser-Speicher. Bitte danach Flugmodus testen; Safari kann Speicher je nach iOS-Version begrenzen oder entfernen.`;}catch(err){$("mapStatus").textContent="Import nicht abgeschlossen: "+(err?.message||String(err));}finally{e.target.value="";}});
+if("serviceWorker"in navigator&&location.protocol!=="file:")window.addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js").catch(()=>{}));
+updateConnectionStatus();load();
