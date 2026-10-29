@@ -67,3 +67,9 @@ VERSION 8 – ORGANIC MAPS OFFIZIELLER ROUTENLINK
 - Verwendet den auf der offiziellen Organic-Maps-API-Testseite dokumentierten /route-Link mit Start- und Zielkoordinaten.
 - Der Link wird als https://omaps.app/route geöffnet, damit iOS den Universal Link an Organic Maps übergeben kann.
 - Auf dem iPhone testen; falls eine Auswahl erscheint, „In Organic Maps öffnen“ bestätigen.
+
+
+VERSION 9 – GPS-ÜBERGABE KORRIGIERT
+- Korrigiert den Zugriff auf den aktuellen Standort: PostRoute speichert GPS-Koordinaten als Array [Breitengrad, Längengrad].
+- Der Organic-Maps-Link verwendet das getestete Format /route?sll=...&dll=...&type=vehicle.
+- Service-Worker-Cache wurde auf v9 angehoben, damit die aktualisierte app.js geladen wird.

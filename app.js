@@ -272,8 +272,8 @@ $("organicMapsBtn").addEventListener("click", () => {
     $("navDetail").textContent = "Organic Maps wird mit dem Routenlink geöffnet. Falls Safari fragt, bestätige bitte „In Organic Maps öffnen“.";
     window.location.href = url;
   };
-  if (currentLocation && Number.isFinite(currentLocation.lat) && Number.isFinite(currentLocation.lon)) {
-    openRoute(currentLocation.lat, currentLocation.lon);
+  if (Array.isArray(currentLocation) && Number.isFinite(currentLocation[0]) && Number.isFinite(currentLocation[1])) {
+    openRoute(currentLocation[0], currentLocation[1]);
   } else if (navigator.geolocation) {
     $("navDetail").textContent = "Ermittle deinen aktuellen Standort …";
     navigator.geolocation.getCurrentPosition(
