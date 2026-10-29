@@ -7,6 +7,10 @@ let markers = [];
 let routeLine = null;
 let navigationLine = null;
 let currentLocation = null;
+let currentMarker = null;
+let watchId = null;
+let lastRoutePoint = null;
+let activeTargetId = null;
 
 const $ = id => document.getElementById(id);
 const map = L.map("map").setView(defaultCenter, 15);
@@ -100,15 +104,27 @@ $("splitBtn").addEventListener("click", () => {
 });
 async function nextOpen() {
   const item = route.find(x => x.status === "open");
-  if (!item) { $("nextMessage").textContent = route.length ? "Keine offenen Ziele mehr." : "Füge zuerst Ziele hinzu."; return; }
+  if (!item) {
+    $("nextMessage").textContent = route.length ? "Keine offenen Ziele mehr." : "Füge zuerst Ziele hinzu.";
+    $("navTarget").textContent = "Keine offenen Ziele";
+    $("navDetail").textContent = "Füge Ziele hinzu oder markiere ein übersprungenes Ziel wieder als offen.";
+    return;
+  }
+  activeTargetId = item.id;
   const index = route.indexOf(item);
   map.setView([item.lat,item.lon],17);
   markers[index]?.openPopup();
+  $("navTarget").textContent = item.address;
   if (!currentLocation) {
-    $("nextMessage").textContent = `Nächstes offenes Ziel: ${item.address}. Tippe zuerst auf „Mein Standort“, damit eine Strecke von deinem GPS-Standort berechnet werden kann.`;
+    $("navDetail").textContent = "Tippe auf „Mein Standort“ oder „Standort verfolgen“, um eine Strecke von deinem GPS-Standort berechnen zu lassen.";
+    $("nextMessage").textContent = `Nächstes offenes Ziel: ${item.address}.`;
     return;
   }
-  $("nextMessage").textContent = "Straßenroute wird berechnet …";
+  await calculateNavigation(item);
+}
+async function calculateNavigation(item) {
+  if (!item || !currentLocation) return;
+  $("navDetail").textContent = "Straßenroute wird berechnet …";
   try {
     const url = `https://router.project-osrm.org/route/v1/driving/${currentLocation[1]},${currentLocation[0]};${item.lon},${item.lat}?overview=full&geometries=geojson`;
     const response = await fetch(url);
@@ -121,9 +137,12 @@ async function nextOpen() {
     map.fitBounds(navigationLine.getBounds(), {padding:[28,28]});
     const km = (data.routes[0].distance / 1000).toFixed(1);
     const mins = Math.round(data.routes[0].duration / 60);
-    $("nextMessage").textContent = `Nächstes Ziel: ${item.address} · Straßenroute ca. ${km} km / ${mins} Min.`;
+    $("navTarget").textContent = item.address;
+    $("navDetail").textContent = `Straßenroute: ca. ${km} km · ${mins} Min. (Schätzung). Die Karte zeigt die Route; es gibt noch keine Abbiegeansagen.`;
+    $("nextMessage").textContent = `Nächstes Ziel: ${item.address} · ca. ${km} km / ${mins} Min.`;
   } catch {
-    $("nextMessage").textContent = `Nächstes Ziel: ${item.address}. Straßenroute konnte nicht berechnet werden; bitte Internetverbindung prüfen.`;
+    $("navDetail").textContent = "Straßenroute konnte nicht berechnet werden. Prüfe die Internetverbindung.";
+    $("nextMessage").textContent = `Nächstes Ziel: ${item.address}. Straßenroute nicht verfügbar.`;
   }
 }
 $("nextBtn").addEventListener("click", nextOpen);
@@ -183,8 +202,7 @@ $("locateBtn").addEventListener("click", () => {
   $("nextMessage").textContent = "Standort wird ermittelt …";
   navigator.geolocation.getCurrentPosition(pos => {
     const p = [pos.coords.latitude,pos.coords.longitude];
-    currentLocation = p;
-    L.circleMarker(p,{radius:8,color:"#176b52",fillColor:"#8de0b9",fillOpacity:1}).addTo(map).bindPopup("Dein aktueller Standort").openPopup();
+    updateCurrentLocation(p);
     map.setView(p,17);
     $("nextMessage").textContent = "Dein Standort wurde angezeigt. Tippe auf „Nächstes offenes Ziel“, um eine Straßenroute zum nächsten Ziel zu berechnen.";
   }, () => $("nextMessage").textContent = "Standort konnte nicht ermittelt werden. Bitte GPS-Berechtigung prüfen.", {enableHighAccuracy:true,timeout:12000});
@@ -202,6 +220,50 @@ $("importInput").addEventListener("change", async e => {
 });
 $("clearRouteBtn").addEventListener("click", () => {
   if(confirm("Möchtest du wirklich alle Ziele aus der Route löschen?")) { route=[]; splitBefore=0; render(); $("nextMessage").textContent=""; }
+});
+function updateCurrentLocation(p) {
+  currentLocation = p;
+  if (!currentMarker) {
+    currentMarker = L.circleMarker(p,{radius:8,color:"#1458b0",weight:3,fillColor:"#76b7ff",fillOpacity:1})
+      .addTo(map).bindPopup("Dein aktueller Standort");
+  } else {
+    currentMarker.setLatLng(p);
+  }
+  // Keep the live position visible without zooming the map on every GPS update.
+  const target = route.find(x => x.id === activeTargetId && x.status === "open") || route.find(x => x.status === "open");
+  if (target && (!lastRoutePoint || distanceMeters(lastRoutePoint,p) > 60)) {
+    lastRoutePoint = p;
+    calculateNavigation(target);
+  }
+}
+function distanceMeters(a,b) {
+  const R=6371000, rad=x=>x*Math.PI/180;
+  const dLat=rad(b[0]-a[0]), dLon=rad(b[1]-a[1]);
+  const v=Math.sin(dLat/2)**2+Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dLon/2)**2;
+  return 2*R*Math.atan2(Math.sqrt(v),Math.sqrt(1-v));
+}
+$("followBtn").addEventListener("click", () => {
+  if (!navigator.geolocation) { $("navDetail").textContent = "GPS wird von diesem Browser nicht unterstützt."; return; }
+  if (watchId !== null) return;
+  $("navDetail").textContent = "Standortverfolgung läuft. Bitte GPS-Zugriff erlauben.";
+  watchId = navigator.geolocation.watchPosition(pos => {
+    const p=[pos.coords.latitude,pos.coords.longitude];
+    const first = !currentLocation;
+    updateCurrentLocation(p);
+    if (first) map.setView(p,17);
+    $("stopFollowBtn").disabled=false;
+    $("followBtn").textContent="🛰️ Standort wird verfolgt";
+  }, () => {
+    $("navDetail").textContent = "Standort konnte nicht ermittelt werden. Bitte Standortfreigabe prüfen.";
+  }, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
+  $("stopFollowBtn").disabled=false;
+});
+$("stopFollowBtn").addEventListener("click", () => {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId=null;
+  $("stopFollowBtn").disabled=true;
+  $("followBtn").textContent="🛰️ Standort verfolgen";
+  $("navDetail").textContent = "Standortverfolgung gestoppt. Tippe auf „Standort verfolgen“, um sie fortzusetzen.";
 });
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js").catch(()=>{}));

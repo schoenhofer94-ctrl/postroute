@@ -36,3 +36,12 @@ VERSION 3 – STRASSENROUTE (ONLINE-PROTOTYP)
   Navigation im Produktivbetrieb gedacht.
 - Noch KEINE Offline-Routenberechnung, KEINE Offline-Karten und KEINE Sprachführung.
 - Für Offline-Betrieb müssen Kartendaten und Routing-Engine später ausdrücklich eingebaut und auf dem iPhone getestet werden.
+
+
+VERSION 4 – LIVE-STANDORT + NAVIGATIONSÜBERSICHT
+- Neue Navigationskarte mit hervorgehobenem Ziel.
+- „Standort verfolgen“ verwendet GPS-Updates im geöffneten Browser.
+- Versucht, die Straßenroute neu zu berechnen, wenn sich der Standort um mehr als etwa 60 m verändert.
+- Routing und Karten benötigen weiterhin Internet. Keine Offline-Karte, keine Offline-Routenberechnung,
+  keine Turn-by-turn-/Sprachanweisungen und keine garantierte Hintergrund-GPS-Nutzung.
+- Öffentliche OSRM-Demo ist nur für Tests geeignet; kein garantierter Produktionsdienst.
